@@ -101,13 +101,18 @@ def command_for(path: str) -> list[str]:
     return [path]
 
 
+def search_path(name: str) -> str | None:
+    """PATH lookup for optional tools (a separate hook so tests can hide real tools)."""
+    return shutil.which(name)
+
+
 def locate(env_var: str, *names: str) -> str | None:
     """Find a tool: the ``env_var`` override first, then ``PATH``."""
     override = os.environ.get(env_var)
     if override:
         return override if Path(override).is_file() else None
     for name in names:
-        found = shutil.which(name)
+        found = search_path(name)
         if found:
             return found
     return None

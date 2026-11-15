@@ -59,11 +59,35 @@ class RunSummary:
 
 
 @dataclass
+class AISection:
+    """What the optional AI step did, for the report (never contains capture values)."""
+
+    provider: str
+    model: str
+    status: str
+    """``answered``, ``cached``, ``dry-run``, ``nothing-to-send`` or ``error``."""
+    message: str
+    """Token use, cache note, or the error, in one sentence."""
+    digest_tokens: int = 0
+    kept: int = 0
+    dropped: int = 0
+    relationships: list[str] = field(default_factory=list)
+    anomalies: list[str] = field(default_factory=list)
+    next_steps: list[str] = field(default_factory=list)
+
+    @property
+    def label(self) -> str:
+        """Short text for the summary table."""
+        return f"{self.provider} / {self.model} ({self.status})"
+
+
+@dataclass
 class ReportData:
     """Everything a renderer needs."""
 
     summary: RunSummary
     findings: list[Finding]
+    ai: AISection | None = None
 
     @property
     def concern_counts(self) -> dict[str, int]:

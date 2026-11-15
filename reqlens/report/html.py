@@ -202,6 +202,35 @@ def _filters() -> str:
     return f'<div class="filters" role="group" aria-label="Filter by concern">{inputs}</div>'
 
 
+def _ai_section(data: ReportData) -> str:
+    ai = data.ai
+    parts = [
+        '<section aria-label="AI analysis"><h2>AI analysis</h2>',
+        f'<p><span class="badge meta">{e(ai.provider)}</span><span class="badge meta">'
+        f'{e(ai.model)}</span><span class="badge meta">{e(ai.status)}</span></p>',
+        f"<p>{e(ai.message)}</p>",
+    ]
+    if ai.digest_tokens:
+        parts.append(
+            f"<p>Only a redacted digest was used: about {ai.digest_tokens} tokens, {ai.kept} "
+            f"entries kept, {ai.dropped} left out for the budget. AI findings are marked "
+            "<em>source: ai</em>; like every finding they are leads to verify by hand.</p>"
+        )
+    for label, items in (
+        ("Relationships between endpoints", ai.relationships),
+        ("Anomalies", ai.anomalies),
+        ("Next steps", ai.next_steps),
+    ):
+        if items:
+            parts.append(
+                f"<h3>{e(label)}</h3><ul>"
+                + "".join(f"<li>{e(item)}</li>" for item in items)
+                + "</ul>"
+            )
+    parts.append("</section>")
+    return "".join(parts)
+
+
 def render(data: ReportData) -> str:
     """Render the full HTML report."""
     body = [
@@ -233,6 +262,8 @@ def render(data: ReportData) -> str:
             current = finding.category
             body.append(f"<h2>{e(current)} {e(CATEGORIES.get(current, ''))}</h2>")
         body.append(_finding(number, finding))
+    if data.ai is not None:
+        body.append(_ai_section(data))
     body.append(
         "<footer><p><strong>How to read this report.</strong> Concern ranks what to test "
         "first; it is not a severity rating, because nothing here has been confirmed. Each "

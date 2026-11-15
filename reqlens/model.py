@@ -87,6 +87,8 @@ class Transaction:
     notes: list[str] = field(default_factory=list)
     """Facts recorded during loading/redaction, e.g. 'response body truncated'."""
     redacted: bool = False
+    redaction_policy: str = ""
+    """``strict`` (values masked) or ``keep-values``. Only ``strict`` may reach an AI."""
     """True once :mod:`reqlens.redact` produced this object. Checks refuse raw data."""
     tokens: list[TokenRecord] = field(default_factory=list)
     """Secrets removed by redaction, described structurally."""

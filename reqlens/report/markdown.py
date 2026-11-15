@@ -136,6 +136,34 @@ def _finding(number: int, finding: Finding) -> list[str]:
     return lines
 
 
+def _ai_section(data: ReportData) -> list[str]:
+    ai = data.ai
+    lines = [
+        "## AI analysis",
+        "",
+        f"**Provider:** {text(ai.provider)} · **Model:** {text(ai.model)} · "
+        f"**Status:** {text(ai.status)}",
+        "",
+        text(ai.message),
+        "",
+    ]
+    if ai.digest_tokens:
+        lines += [
+            f"Only a redacted digest was used: about {ai.digest_tokens} tokens, {ai.kept} "
+            f"entries kept, {ai.dropped} left out for the budget. AI findings above are marked "
+            "**Source:** ai; like every finding they are leads to verify by hand.",
+            "",
+        ]
+    for label, items in (
+        ("Relationships between endpoints", ai.relationships),
+        ("Anomalies", ai.anomalies),
+        ("Next steps", ai.next_steps),
+    ):
+        if items:
+            lines += [f"**{label}**", ""] + [f"- {text(item)}" for item in items] + [""]
+    return lines
+
+
 def render(data: ReportData) -> str:
     """Render the full Markdown report."""
     lines = [
@@ -155,6 +183,8 @@ def render(data: ReportData) -> str:
             name = text(f"{current} {CATEGORIES.get(current, '')}".strip())
             lines += [f"## {name}", ""]
         lines += _finding(number, finding)
+    if data.ai is not None:
+        lines += _ai_section(data)
     lines += [
         "## How to read this report",
         "",

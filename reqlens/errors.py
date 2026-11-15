@@ -33,6 +33,10 @@ class ReportError(ReqlensError):
     """A report could not be written."""
 
 
+class AIError(ReqlensError):
+    """The optional AI step could not run or returned nothing usable."""
+
+
 class SafetyViolation(ReqlensError):
     """A structural safety guarantee was about to be broken (for example a model claiming
     a finding is 'confirmed'). This always indicates a bug and must never be caught silently."""

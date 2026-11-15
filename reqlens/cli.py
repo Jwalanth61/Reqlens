@@ -17,11 +17,14 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 
 from reqlens import __version__, config
+from reqlens.ai.constants import DEFAULT_BUDGET as AI_DEFAULT_BUDGET
+from reqlens.ai.constants import PROVIDERS as AI_PROVIDERS
 from reqlens.checks import Context, merge, run_checks
 from reqlens.errors import ReqlensError, UsageError
 from reqlens.external import ToolStatus, detect_tools, hashcat, jwt_tool
@@ -55,6 +58,18 @@ class Options:
     use_external_tools: bool = True
     check_jwt: str | None = None
     check_hashes: list[str] | None = None
+    ai: bool = False
+    ai_provider: str = "anthropic"
+    ai_model: str | None = None
+    ai_base_url: str | None = None
+    ai_budget: int = 3000
+    ai_dry_run: bool = False
+    ai_no_cache: bool = False
+
+    @property
+    def ai_requested(self) -> bool:
+        """True when the AI step runs (for real or as a dry run)."""
+        return self.ai or self.ai_dry_run
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -133,6 +148,44 @@ def build_parser() -> argparse.ArgumentParser:
         help="do not use optional external tools (jwt_tool, hashcat) even if installed",
     )
     parser.add_argument("--version", action="version", version=f"reqlens {__version__}")
+
+    group = parser.add_argument_group(
+        "AI analysis (optional, off by default)",
+        "Condenses the strictly redacted capture locally, then asks an AI model once what the "
+        "rules missed. Only a redacted digest is sent: never raw captures, secrets or PII. "
+        "API keys are read from environment variables only (REQLENS_AI_KEY, OPENAI_API_KEY, "
+        "ANTHROPIC_API_KEY).",
+    )
+    group.add_argument("--ai", action="store_true", help="Analyse the capture with an AI model")
+    group.add_argument(
+        "--ai-provider",
+        choices=AI_PROVIDERS,
+        default=os.environ.get("REQLENS_AI_PROVIDER", "anthropic"),
+        help="anthropic/openai/ollama use an API; codex/claude/gemini use that signed-in CLI "
+        "(default: anthropic)",
+    )
+    group.add_argument(
+        "--ai-model",
+        default=os.environ.get("REQLENS_AI_MODEL"),
+        help="Model name (required for openai and ollama)",
+    )
+    group.add_argument(
+        "--ai-base-url", help="Override the API address, e.g. an OpenAI-compatible server"
+    )
+    group.add_argument(
+        "--ai-budget",
+        type=int,
+        default=AI_DEFAULT_BUDGET,
+        help=f"Max estimated input tokens to send (default: {AI_DEFAULT_BUDGET})",
+    )
+    group.add_argument(
+        "--ai-dry-run",
+        action="store_true",
+        help="Show what would be sent and its token estimate; send nothing",
+    )
+    group.add_argument(
+        "--ai-no-cache", action="store_true", help="Ignore and don't save cached AI answers"
+    )
     return parser
 
 
@@ -182,6 +235,8 @@ def options_from_args(args: argparse.Namespace) -> Options:
         raise UsageError("--check-jwt and --check-hashes run on their own; drop the capture files")
     if not knowledge_mode and not args.inputs:
         raise UsageError("give at least one capture file (or use --check-jwt / --check-hashes)")
+    if knowledge_mode and (args.ai or args.ai_dry_run):
+        raise UsageError("--check-jwt and --check-hashes never use AI; drop --ai/--ai-dry-run")
     return Options(
         inputs=list(args.inputs),
         input_format=args.input_format,
@@ -193,6 +248,13 @@ def options_from_args(args: argparse.Namespace) -> Options:
         keep_body_values=args.keep_body_values,
         show_redaction=args.show_redaction,
         use_external_tools=not args.no_external,
+        ai=args.ai,
+        ai_provider=args.ai_provider,
+        ai_model=args.ai_model,
+        ai_base_url=args.ai_base_url,
+        ai_budget=args.ai_budget,
+        ai_dry_run=args.ai_dry_run,
+        ai_no_cache=args.ai_no_cache,
     )
 
 
@@ -200,6 +262,17 @@ def run(options: Options) -> int:
     """Run the pipeline in order. Returns the process exit code."""
     if options.check_jwt is not None or options.check_hashes is not None:
         return _knowledge_mode(options)
+    if options.ai_requested:
+        from reqlens.ai.settings import check_settings
+
+        # Fail before reading any capture if the AI settings can't work.
+        check_settings(
+            options.ai_provider,
+            options.ai_model,
+            options.ai_base_url,
+            options.ai_budget,
+            dry_run=options.ai_dry_run,
+        )
     # 1. load
     loaded = load_captures(options.inputs, options.input_format)
     for warning in loaded.warnings:
@@ -223,7 +296,12 @@ def run(options: Options) -> int:
     for note in tool_notes:
         _note(note)
     findings = merge(findings + tool_findings)
-    # 6. AI analysis: added in a later build phase (opt-in only).
+    # 6. AI analysis (opt-in). It always gets a strictly redacted view, even when the local
+    #    report keeps body values.
+    ai_section = None
+    if options.ai_requested:
+        ai_section, ai_findings = _ai_step(options, scoped, redacted, endpoints, findings)
+        findings = merge(findings + ai_findings)
     # 7. reports
     summary = build_summary(
         loaded,
@@ -235,14 +313,46 @@ def run(options: Options) -> int:
         if options.keep_body_values
         else "strict (values masked)",
         external_tools={name: status.label for name, status in tools.items()},
+        ai_provider=ai_section.label if ai_section else None,
     )
-    written = write_reports(ReportData(summary, findings), options.report_formats, options.output)
+    written = write_reports(
+        ReportData(summary, findings, ai_section), options.report_formats, options.output
+    )
     print()
     print(render_findings(findings))
     print()
     for path in written:
         print(f"report written: {clean_text(str(path), keep_newlines=False)}")
     return 0
+
+
+def _ai_step(options: Options, scoped, redacted, endpoints, findings):
+    """Run the optional AI analysis on a strictly redacted view. Returns (section, findings)."""
+    from reqlens import ai
+
+    if options.keep_body_values:
+        strict = Redactor(RedactionPolicy()).redact_all(scoped.kept)
+        strict_endpoints = group_transactions(strict)
+    else:
+        strict, strict_endpoints = redacted, endpoints
+    outcome = ai.run(
+        strict,
+        strict_endpoints,
+        findings,
+        options.scope,
+        provider=options.ai_provider,
+        model=options.ai_model,
+        base_url=options.ai_base_url,
+        budget=options.ai_budget,
+        dry_run=options.ai_dry_run,
+        use_cache=not options.ai_no_cache,
+    )
+    if outcome.dry_run_text:
+        print(clean_text(outcome.dry_run_text))
+        print()
+    if outcome.section is not None:
+        _note(f"AI ({outcome.section.label}): {outcome.section.message}")
+    return outcome.section, outcome.findings
 
 
 def _read_values(values: list[str]) -> list[str]:

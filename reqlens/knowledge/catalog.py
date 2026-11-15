@@ -17,10 +17,27 @@ CATEGORIES: dict[str, str] = {
     "API3:2023": "Broken Object Property Level Authorization",
     "API4:2023": "Unrestricted Resource Consumption",
     "API5:2023": "Broken Function Level Authorization",
+    "API6:2023": "Unrestricted Access to Sensitive Business Flows",
     "API7:2023": "Server Side Request Forgery",
     "API8:2023": "Security Misconfiguration",
     "API9:2023": "Improper Inventory Management",
+    "API10:2023": "Unsafe Consumption of APIs",
+    "OTHER": "Other observations",
 }
+
+CATEGORY_REFERENCES: dict[str, str] = {
+    "API1:2023": "https://owasp.org/API-Security/editions/2023/en/0xa1-broken-object-level-authorization/",
+    "API2:2023": "https://owasp.org/API-Security/editions/2023/en/0xa2-broken-authentication/",
+    "API3:2023": "https://owasp.org/API-Security/editions/2023/en/0xa3-broken-object-property-level-authorization/",
+    "API4:2023": "https://owasp.org/API-Security/editions/2023/en/0xa4-unrestricted-resource-consumption/",
+    "API5:2023": "https://owasp.org/API-Security/editions/2023/en/0xa5-broken-function-level-authorization/",
+    "API6:2023": "https://owasp.org/API-Security/editions/2023/en/0xa6-unrestricted-access-to-sensitive-business-flows/",
+    "API7:2023": "https://owasp.org/API-Security/editions/2023/en/0xa7-server-side-request-forgery/",
+    "API8:2023": "https://owasp.org/API-Security/editions/2023/en/0xa8-security-misconfiguration/",
+    "API9:2023": "https://owasp.org/API-Security/editions/2023/en/0xa9-improper-inventory-management/",
+    "API10:2023": "https://owasp.org/API-Security/editions/2023/en/0xaa-unsafe-consumption-of-apis/",
+}  # noqa: E501
+"""Reference page for each OWASP API Top 10 (2023) category, used for AI findings."""
 
 WSTG_URL = "https://owasp.org/www-project-web-security-testing-guide/latest/"
 _API = "https://owasp.org/API-Security/editions/2023/en/"

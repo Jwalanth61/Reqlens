@@ -13,6 +13,7 @@ dependencies = []
 
 [project.optional-dependencies]
 dev = ["pytest>=7", "ruff>=0.4"]
+ai = ["anthropic"]  # only for --ai-provider anthropic; the other providers need nothing extra
 
 [project.scripts]
 reqlens = "reqlens.cli:main"

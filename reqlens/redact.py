@@ -415,6 +415,7 @@ class Redactor:
             ),
             notes=list(tx.notes),
             redacted=True,
+            redaction_policy="keep-values" if self.policy.keep_body_values else "strict",
             tokens=sink.tokens,
             pii=sink.pii,
         )

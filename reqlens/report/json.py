@@ -45,6 +45,7 @@ def to_dict(data: ReportData) -> dict:
         "summary": summary,
         "counts": {"by_concern": data.concern_counts, "by_category": data.category_counts},
         "findings": [_clean(finding) for finding in data.findings],
+        "ai": _clean(data.ai) if data.ai is not None else None,
     }
 
 
