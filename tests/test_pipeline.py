@@ -67,6 +67,6 @@ def test_full_run_prints_findings_without_secrets(tmp_path, capsys):
     assert "== API1:2023 Broken Object Level Authorization ==" in out
     assert "Algorithm confusion (asymmetric -> HS256) worth testing [RS256]" in out
     assert "Secret token carried in the URL ('token' on app.test)" in out
-    assert "Manual test:" in out and "Learn:" in out
+    assert "report written:" in out and "reqlens-report.md" in out
     for secret in cf.SECRETS:
         assert secret not in out

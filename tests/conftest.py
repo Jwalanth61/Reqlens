@@ -21,6 +21,12 @@ def _blocked(*_args, **_kwargs):
 
 
 @pytest.fixture(autouse=True)
+def isolated_cwd(tmp_path_factory, monkeypatch):
+    """Run every test in an empty directory so default report files never land in the repo."""
+    monkeypatch.chdir(tmp_path_factory.mktemp("cwd"))
+
+
+@pytest.fixture(autouse=True)
 def block_network(request, monkeypatch):
     """Forbid socket creation and name resolution for every test by default."""
     if request.node.get_closest_marker("allow_network"):

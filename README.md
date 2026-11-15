@@ -8,8 +8,9 @@ request and response and produces a report of *possible* issues. Each one comes 
 explanation, a single-step manual test you can run yourself, and a short lesson on the
 vulnerability class.
 
-> **Status:** under construction (phase 1 of 7: scaffold and data model). The full
-> README, covering capture how-to, privacy model, and every flag, lands as the features do.
+> **Status:** under construction (phase 4 of 7 done: HAR input, redaction, local checks,
+> reports). Optional external tools, more input formats and opt-in AI analysis come next.
+> The full README, covering capture how-to and every flag, lands as the features do.
 
 ## The passive-only guarantee
 
@@ -67,7 +68,24 @@ claims. Each comes with a manual test and a reference. The signature is never sh
 
 `--check-hashes` only identifies values. Nothing is ever cracked.
 
-Status: report files (md/html/json) are planned for phase 4; findings are printed for now.
+## Reports
+
+```bash
+reqlens session.har --scope app.test --report-format md,html,json -o reports/app-2026-11
+```
+
+- `--report-format` takes one or more of `md`, `html` and `json` (default `md`). `-o` sets
+  the path prefix (default `reqlens-report`); each format adds its own extension.
+- Every report opens with a passive-analysis banner. It then gives a summary: capture
+  files (names only), scope, transaction and endpoint counts, excluded hosts, redaction
+  totals, optional tools used, and the AI provider, if any. Findings follow, ordered by
+  OWASP category and then concern.
+- **HTML** is a single self-contained page with no scripts and no external resources. Its
+  Content-Security-Policy forbids both, and it has CSS-only concern filters plus
+  light and dark themes.
+- **JSON** follows schema `reqlens.report/1` and is meant for pipelines.
+- Reports contain only redacted values. All captured text is sanitised, then escaped for
+  each format. In Markdown, evidence is shown literally inside code spans.
 
 ## Development
 

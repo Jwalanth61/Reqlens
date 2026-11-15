@@ -27,6 +27,7 @@ from reqlens.errors import ReqlensError, UsageError
 from reqlens.group import group_transactions
 from reqlens.loaders import load_captures
 from reqlens.redact import RedactionPolicy, Redactor
+from reqlens.report import ReportData, build_summary, write_reports
 from reqlens.sanitize import clean_text
 from reqlens.scope import apply_scope
 from reqlens.view import (
@@ -214,10 +215,24 @@ def run(options: Options) -> int:
     print(render_summary(loaded, scoped, redacted, endpoints))
     # 5. local checks + knowledge layer (no AI)
     findings = run_checks(Context(redacted, endpoints, options.scope))
+    # 6. AI analysis: added in a later build phase (opt-in only).
+    # 7. reports
+    summary = build_summary(
+        loaded,
+        scoped,
+        redacted,
+        endpoints,
+        options.scope,
+        redaction_policy="values kept (local report only)"
+        if options.keep_body_values
+        else "strict (values masked)",
+    )
+    written = write_reports(ReportData(summary, findings), options.report_formats, options.output)
     print()
     print(render_findings(findings))
-    # 6-7. AI and reports: added in later build phases.
-    _note("report files are not built yet (phase 4); findings were printed above only")
+    print()
+    for path in written:
+        print(f"report written: {clean_text(str(path), keep_newlines=False)}")
     return 0
 
 

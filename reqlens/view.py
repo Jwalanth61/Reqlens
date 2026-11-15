@@ -101,36 +101,8 @@ def _wrap(label: str, text: str, indent: str = "   ") -> list[str]:
     return body.splitlines()
 
 
-def _finding_block(number: int, finding: Finding) -> list[str]:
-    category = catalog.CATEGORIES.get(finding.category, "")
-    meta = f"concern: {finding.concern.value} | {finding.confidence.value} | {finding.category}"
-    if category:
-        meta += f" {category}"
-    if finding.wstg:
-        meta += f" | {', '.join(finding.wstg)}"
-    lines = [_line(f"{number}. {finding.title}"), f"   [{meta}]"]
-    if finding.observed:
-        lines += _wrap("Observed: ", finding.observed)
-    lines += _wrap("Why it may matter: ", finding.why)
-    lines += _wrap("Manual test: ", finding.manual_test)
-    lines += _wrap("Learn: ", finding.learning)
-    if finding.evidence:
-        extra = finding.occurrences - len(finding.evidence)
-        lines.append("   Evidence:")
-        for item in finding.evidence:
-            where = f"{item.location} {item.name}".strip()
-            lines.append(
-                _line(f"     - #{item.transaction_index} {item.endpoint} | {where}: {item.value}")
-            )
-        if extra > 0:
-            lines.append(f"     - ... and {extra} more")
-    for reference in finding.references:
-        lines.append(_line(f"   Reference: {reference}"))
-    return lines
-
-
 def render_findings(findings: list[Finding]) -> str:
-    """Terminal listing of findings, grouped by category (already sorted)."""
+    """Compact terminal listing (one line per finding); full detail is in the reports."""
     lines = [_line(config.PASSIVE_BANNER), ""]
     if not findings:
         lines.append("No findings from the local checks.")
@@ -148,7 +120,8 @@ def render_findings(findings: list[Finding]) -> str:
             current = finding.category
             name = catalog.CATEGORIES.get(current, "")
             lines += ["", f"== {current} {name} ==".rstrip()]
-        lines += [""] + _finding_block(number, finding)
+        extra = f" (x{finding.occurrences})" if finding.occurrences > 1 else ""
+        lines.append(_line(f"  {number:>3}. [{finding.concern.value:<6}] {finding.title}{extra}"))
     return "\n".join(lines)
 
 
