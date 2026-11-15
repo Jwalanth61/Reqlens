@@ -27,6 +27,16 @@ def isolated_cwd(tmp_path_factory, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def hide_real_tools(monkeypatch):
+    """Tests never run a real hashcat/jwt_tool installed on the machine; tests that need a
+    tool install a fake and point REQLENS_HASHCAT / REQLENS_JWT_TOOL at it."""
+    monkeypatch.delenv("REQLENS_HASHCAT", raising=False)
+    monkeypatch.delenv("REQLENS_JWT_TOOL", raising=False)
+    monkeypatch.delenv("REQLENS_JWT_TOOL_PYTHON", raising=False)
+    monkeypatch.setattr("reqlens.external.shutil.which", lambda _name: None)
+
+
+@pytest.fixture(autouse=True)
 def block_network(request, monkeypatch):
     """Forbid socket creation and name resolution for every test by default."""
     if request.node.get_closest_marker("allow_network"):

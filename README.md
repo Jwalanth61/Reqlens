@@ -8,8 +8,8 @@ request and response and produces a report of *possible* issues. Each one comes 
 explanation, a single-step manual test you can run yourself, and a short lesson on the
 vulnerability class.
 
-> **Status:** under construction (phase 4 of 7 done: HAR input, redaction, local checks,
-> reports). Optional external tools, more input formats and opt-in AI analysis come next.
+> **Status:** under construction (phase 5 of 7 done: HAR input, redaction, local checks, reports,
+> optional tools). Burp, mitmproxy and ZAP input and opt-in AI analysis come next.
 > The full README, covering capture how-to and every flag, lands as the features do.
 
 ## The passive-only guarantee
@@ -67,6 +67,35 @@ signature verification, `kid`/`jku`/embedded-key tricks, key hygiene, expiry, an
 claims. Each comes with a manual test and a reference. The signature is never shown.
 
 `--check-hashes` only identifies values. Nothing is ever cracked.
+
+## Optional external tools
+
+reqlens works fully without these. If they are installed, it uses them for identification
+only. It never installs, updates or configures them.
+
+| Tool | How reqlens finds it | What it is used for |
+|---|---|---|
+| [jwt_tool](https://github.com/ticarpi/jwt_tool) | `REQLENS_JWT_TOOL=/path/to/jwt_tool.py`, or `jwt_tool.py` on PATH. Its Python dependencies must be installed for the interpreter in `REQLENS_JWT_TOOL_PYTHON` (default: the interpreter running reqlens). | Plain decode, to cross-check the algorithm and header fields reqlens read |
+| [hashcat](https://hashcat.net) | `REQLENS_HASHCAT=/path/to/hashcat`, or `hashcat` on PATH | `--identify`, to list the hash modes that match a value's shape |
+
+What the tools receive:
+
+- **Never your captured secrets.** jwt_tool gets a token rebuilt from the redacted header
+  and claims. Identity claims are already fingerprints, the signature is a dummy, and any
+  `jku`/`x5u` key URL is pointed at a `.invalid` host. hashcat gets a made-up sample with
+  the same shape as the captured value, such as 32 hex characters or a bcrypt-shaped string.
+- **No shell, no command-line secrets.** Input goes in through stdin or a file in a fresh,
+  empty temporary directory. That directory is the tool's working directory and is deleted
+  afterwards.
+- **A minimal environment.** API keys and every other non-essential variable are removed.
+- **Identification only.** jwt_tool never gets a target URL or a scan, tamper or crack
+  mode. hashcat never gets a cracking mode. Each run has a timeout.
+- reqlens cannot OS-sandbox a child process, so a tool runs with your user's permissions.
+  That is why it is only ever given redacted shapes.
+
+If a tool is missing, reqlens prints one line saying so and continues. Each report lists
+which tools were available, with their versions, so runs can be reproduced. `--no-external`
+turns tool use off entirely; then no process is started.
 
 ## Reports
 

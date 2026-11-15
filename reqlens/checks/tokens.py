@@ -15,7 +15,7 @@ from reqlens.model import Finding, TokenRecord, Transaction
 _DIGEST_FIELD_RE = re.compile(r"(pass|pwd|hash|secret|digest|salt)", re.IGNORECASE)
 
 
-def _family_key(token: TokenRecord) -> tuple:
+def family_key(token: TokenRecord) -> tuple:
     """Tokens from the same issuer/algorithm/key produce the same findings; analyse once."""
     header = token.jwt_header
     return (
@@ -35,7 +35,7 @@ def run(ctx: Context) -> Iterable[Finding]:
     for tx in ctx.transactions:
         for token in tx.tokens:
             if token.kind == "jwt":
-                key = _family_key(token)
+                key = family_key(token)
                 families.setdefault(key, (tx, token))
                 family_members.setdefault(key, []).append((tx, token))
             elif token.in_url:
@@ -76,12 +76,25 @@ def run(ctx: Context) -> Iterable[Finding]:
             yield finding
 
 
-def _hash_findings(ctx: Context, tx: Transaction, token: TokenRecord) -> Iterable[Finding]:
+def hash_of_interest(token: TokenRecord) -> bool:
+    """True for response values shaped like a password hash, or a hex digest in a
+    credential-like field. Shared with the optional hashcat step."""
     if "response" not in token.location:
+        return False
+    candidates = hashes.identify_format(token.format)
+    if any(c.password_hash for c in candidates):
+        return True
+    return (
+        bool(candidates)
+        and token.format.startswith("hex:")
+        and bool(_DIGEST_FIELD_RE.search(token.name or ""))
+    )
+
+
+def _hash_findings(ctx: Context, tx: Transaction, token: TokenRecord) -> Iterable[Finding]:
+    if not hash_of_interest(token):
         return
     candidates = hashes.identify_format(token.format)
-    if not candidates:
-        return
     evidence = [ctx.evidence(tx, token.location, token.name, f"<redacted:{token.fingerprint}>")]
     names = ", ".join(c.name for c in candidates)
     if any(c.password_hash for c in candidates):
@@ -91,7 +104,7 @@ def _hash_findings(ctx: Context, tx: Transaction, token: TokenRecord) -> Iterabl
             source="knowledge",
             observed=f"Field '{token.name or '(free text)'}' holds a value shaped like: {names}.",
         )
-    elif token.format.startswith("hex:") and _DIGEST_FIELD_RE.search(token.name or ""):
+    else:
         yield make_finding(
             "HASH-DIGEST-EXPOSED",
             evidence,

@@ -175,7 +175,7 @@ def test_every_check_id_used_in_code_exists_in_catalog():
             continue
         used |= set(
             re.findall(
-                r"\"((?:HDR|CK|CORS|JWT|TOKEN|DISC|OBS|ACC|CACHE|GQL|HASH)-[A-Z0-9-]+)\"",
+                r"\"((?:HDR|CK|CORS|JWT|TOKEN|DISC|OBS|ACC|CACHE|GQL|HASH|EXT)-[A-Z0-9-]+)\"",
                 path.read_text(encoding="utf-8"),
             )
         )

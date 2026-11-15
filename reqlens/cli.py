@@ -22,11 +22,13 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from reqlens import __version__, config
-from reqlens.checks import Context, run_checks
+from reqlens.checks import Context, merge, run_checks
 from reqlens.errors import ReqlensError, UsageError
+from reqlens.external import ToolStatus, detect_tools, hashcat, jwt_tool
+from reqlens.external.findings import describe_hashcat, describe_jwt_tool, external_findings
 from reqlens.group import group_transactions
 from reqlens.loaders import load_captures
-from reqlens.redact import RedactionPolicy, Redactor
+from reqlens.redact import RedactionPolicy, Redactor, describe_format
 from reqlens.report import ReportData, build_summary, write_reports
 from reqlens.sanitize import clean_text
 from reqlens.scope import apply_scope
@@ -213,8 +215,14 @@ def run(options: Options) -> int:
     # 4. group
     endpoints = group_transactions(redacted)
     print(render_summary(loaded, scoped, redacted, endpoints))
-    # 5. local checks + knowledge layer (no AI)
-    findings = run_checks(Context(redacted, endpoints, options.scope))
+    # 5. local checks + knowledge layer (no AI), then optional external tools
+    context = Context(redacted, endpoints, options.scope)
+    findings = run_checks(context)
+    tools = _detect_tools(options.use_external_tools)
+    tool_findings, tool_notes = external_findings(context, tools)
+    for note in tool_notes:
+        _note(note)
+    findings = merge(findings + tool_findings)
     # 6. AI analysis: added in a later build phase (opt-in only).
     # 7. reports
     summary = build_summary(
@@ -226,6 +234,7 @@ def run(options: Options) -> int:
         redaction_policy="values kept (local report only)"
         if options.keep_body_values
         else "strict (values masked)",
+        external_tools={name: status.label for name, status in tools.items()},
     )
     written = write_reports(ReportData(summary, findings), options.report_formats, options.output)
     print()
@@ -258,10 +267,46 @@ def _knowledge_mode(options: Options) -> int:
         if record is None:
             raise UsageError("--check-jwt: that value is not a JWT (expected header.payload.sig)")
         blocks.append(render_jwt_knowledge(record))
+        tool = _detect_tools(options.use_external_tools, only="jwt_tool")["jwt_tool"]
+        if tool.available:
+            observed, problem = describe_jwt_tool(tool, record)
+            blocks.append(
+                clean_text(
+                    f"Optional tool jwt_tool (decode only, redacted token): {observed or problem}",
+                    keep_newlines=False,
+                )
+            )
     if options.check_hashes is not None:
-        blocks.append(render_hash_knowledge(_read_values(options.check_hashes)))
+        values = _read_values(options.check_hashes)
+        blocks.append(render_hash_knowledge(values))
+        tool = _detect_tools(options.use_external_tools, only="hashcat")["hashcat"]
+        if tool.available:
+            lines = ["Optional tool hashcat (--identify on a synthetic sample of each shape):"]
+            for number, value in enumerate(values, 1):
+                fmt = describe_format(value.strip())
+                if hashcat.sample_for_format(fmt) is None:
+                    lines.append(f"{number}. shape {fmt}: no sample for this shape; skipped")
+                    continue
+                observed, problem = describe_hashcat(tool, fmt)
+                lines.append(f"{number}. {observed or problem}")
+            blocks.append("\n".join(clean_text(line, keep_newlines=False) for line in lines))
     print("\n\n".join(blocks))
     return 0
+
+
+def _detect_tools(enabled: bool, only: str | None = None) -> dict[str, ToolStatus]:
+    """Detect optional tools and print one line for each that can't be used."""
+    tools = detect_tools(enabled)
+    if only is not None:
+        tools = {only: tools[only]}
+    hints = {"jwt_tool": jwt_tool.ENV_VAR, "hashcat": hashcat.ENV_VAR}
+    for name, status in tools.items():
+        if enabled and not status.available:
+            _note(
+                f"optional tool {name}: {status.detail}; continuing without it "
+                f"(set {hints[name]} to its path to use it)"
+            )
+    return tools
 
 
 def _note(message: str) -> None:

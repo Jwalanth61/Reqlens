@@ -802,6 +802,37 @@ CATALOG: dict[str, Entry] = {
         ["WSTG-CRYP-04"],
         [_CS + "Password_Storage_Cheat_Sheet.html"],
     ),
+    # ---------------------------------------------------------------- optional tools
+    "EXT-JWT-TOOL": _e(
+        "jwt_tool's offline reading of the captured JWT",
+        "API2:2023",
+        "info",
+        "A second, independent tool decoded the same token structure. Agreement confirms the "
+        "algorithm and header fields the JWT findings are based on; disagreement is worth a "
+        "closer look before you test.",
+        "Run jwt_tool yourself in decode mode on a copy of your own test-account token "
+        "(python jwt_tool.py <token>, with no -t target and no -M/-X/-C mode) and compare.",
+        "jwt_tool is a widely used JWT testing toolkit. reqlens uses only its decoder, on a "
+        "token rebuilt from redacted parts, so it never sees your real token or contacts any "
+        "server.",
+        ["WSTG-SESS-10"],
+        ["https://github.com/ticarpi/jwt_tool"],
+    ),
+    "EXT-HASHCAT-IDENTIFY": _e(
+        "hashcat's hash-mode identification for a captured value's shape",
+        "API3:2023",
+        "info",
+        "hashcat lists every hash mode whose structure matches the value's shape, which "
+        "narrows down what the value could be (and how hard it would be to attack offline).",
+        "Ask the team or the API documentation what the field contains, and whether clients "
+        "need it at all.",
+        "Hash identification is about structure: length, alphabet and prefix. Several "
+        "algorithms share a shape (MD5, MD4 and NTLM are all 32 hex characters), so treat "
+        "the list as candidates. reqlens gave hashcat a synthetic sample of the same shape, "
+        "never the captured value, and used only --identify.",
+        ["WSTG-CRYP-04"],
+        ["https://hashcat.net/wiki/doku.php?id=example_hashes"],
+    ),
 }
 
 
