@@ -8,9 +8,24 @@ request and response and produces a report of *possible* issues. Each one comes 
 explanation, a single-step manual test you can run yourself, and a short lesson on the
 vulnerability class.
 
-> **Status:** under construction (phase 5 of 7 done: HAR input, redaction, local checks, reports,
-> optional tools). Burp, mitmproxy and ZAP input and opt-in AI analysis come next.
+> **Status:** under construction (phase 6 of 7 done: all four input formats, redaction,
+> local checks, reports, optional tools). Opt-in AI analysis comes next.
 > The full README, covering capture how-to and every flag, lands as the features do.
+
+## Input formats
+
+The format is detected from each file's content. `--input-format` forces it.
+
+| Format | How to export it | Notes |
+|---|---|---|
+| `har` | Browser DevTools > Network > "Save all as HAR". Burp, ZAP and mitmproxy can also export HAR. | |
+| `burp` | Burp Suite: select items in Proxy > HTTP history, then right-click > "Save items" (XML; base64 on or off). | Project files (`.burp`) are not supported. The XML's DOCTYPE is removed before parsing, so no entity or external reference is ever expanded. |
+| `mitmproxy` | `mitmdump -w session.flow`, or "Save" in mitmproxy/mitmweb. | Read with reqlens' own bounded parser; nothing is unpickled or executed. Non-HTTP flows are skipped. |
+| `zap` | OWASP ZAP: select messages in History, then right-click > "Export Messages to File". | Usually saved as `.txt`. Name the file or use a glob, since directory scans skip `.txt`. |
+
+Several files, a directory or a glob can be given at once, and mixed formats merge into one
+analysis. Chunked and gzip/deflate-encoded bodies are decoded with a size cap. Brotli and
+zstd bodies are kept as a placeholder.
 
 ## The passive-only guarantee
 

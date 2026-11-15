@@ -142,10 +142,17 @@ def test_detect_format(tmp_path):
         detect_format(Path(write(tmp_path, "c.txt", "hello")))
 
 
-def test_unbuilt_loader_is_reported(tmp_path):
-    burp = write(tmp_path, "b.xml", '<?xml version="1.0"?><items burpVersion="2024.1">')
-    with pytest.raises(InputError, match="phase 6"):
+def test_capture_without_transactions_is_an_error(tmp_path):
+    burp = write(tmp_path, "b.xml", '<?xml version="1.0"?><items burpVersion="2024.1"></items>')
+    with pytest.raises(InputError, match="no HTTP transactions"):
         load_captures([burp])
+
+
+def test_burp_project_file_gets_a_hint(tmp_path):
+    project = tmp_path / "proj.burp"
+    project.write_bytes(b"\x00\x01binary project")
+    with pytest.raises(FormatDetectionError, match="Save items"):
+        load_captures([str(project)])
 
 
 def test_expand_directory_glob_and_merge(tmp_path):

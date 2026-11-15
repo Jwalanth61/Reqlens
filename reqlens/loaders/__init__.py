@@ -14,15 +14,21 @@ from typing import Callable
 
 from reqlens import config
 from reqlens.errors import FormatDetectionError, InputError
-from reqlens.loaders import har
+from reqlens.loaders import burp, har, mitmproxy, zap
 from reqlens.loaders.base import LoadResult
 
 Loader = Callable[[Path, int], LoadResult]
 
-LOADERS: dict[str, Loader] = {"har": har.load}
-"""Formats with a working loader. The rest arrive in a later build phase."""
+LOADERS: dict[str, Loader] = {
+    "har": har.load,
+    "burp": burp.load,
+    "mitmproxy": mitmproxy.load,
+    "zap": zap.load,
+}
 
-_CAPTURE_SUFFIXES = {".har", ".json", ".xml", ".flow", ".mitm", ".zap"}
+# Directory scans pick up these suffixes only. ZAP exports are often .txt: name them
+# directly or with a glob, so unrelated text files in a folder aren't mistaken for captures.
+_CAPTURE_SUFFIXES = {".har", ".json", ".xml", ".flow", ".flows", ".mitm", ".zap"}
 _SNIFF_BYTES = 8192
 
 
@@ -59,16 +65,27 @@ def detect_format(path: Path) -> str:
     """Guess the capture format from the file's first bytes."""
     try:
         with path.open("rb") as handle:
-            head = handle.read(_SNIFF_BYTES).decode("utf-8-sig", errors="replace")
+            raw = handle.read(_SNIFF_BYTES)
     except OSError as exc:
         raise InputError(f"cannot read {path}: {exc.strerror}") from exc
+    head = raw.decode("utf-8-sig", errors="replace")
     if har.looks_like_har(head):
         return "har"
-    stripped = head.lstrip()
-    if stripped.startswith("<") and "burpVersion" in head:
+    if burp.looks_like_burp(head):
         return "burp"
+    if mitmproxy.looks_like_mitmproxy(raw):
+        return "mitmproxy"
+    if zap.looks_like_zap(raw):
+        return "zap"
+    hint = ""
+    if path.suffix.lower() == ".burp":
+        hint = (
+            " Burp project files are not supported: in Burp, select the items in "
+            "Proxy > HTTP history and use 'Save items' to export XML."
+        )
     raise FormatDetectionError(
-        f"cannot tell what format {path} is; pass --input-format ({'|'.join(config.INPUT_FORMATS)})"
+        f"cannot tell what format {path} is; pass --input-format "
+        f"({'|'.join(config.INPUT_FORMATS)}).{hint}"
     )
 
 
@@ -77,10 +94,7 @@ def load_captures(inputs: list[str], input_format: str | None = None) -> LoadRes
     merged = LoadResult()
     for path in expand_inputs(inputs):
         fmt = input_format or detect_format(path)
-        loader = LOADERS.get(fmt)
-        if loader is None:
-            raise InputError(f"the {fmt} loader is not built yet (planned for phase 6): {path}")
-        merged.extend(loader(path, len(merged.transactions)))
+        merged.extend(LOADERS[fmt](path, len(merged.transactions)))
     if not merged.transactions:
         raise InputError("the capture(s) contain no HTTP transactions")
     return merged
