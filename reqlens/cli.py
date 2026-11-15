@@ -16,18 +16,26 @@ Stages are filled in phase by phase; until a stage exists, :func:`run` says so p
 from __future__ import annotations
 
 import argparse
+import contextlib
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 
 from reqlens import __version__, config
+from reqlens.checks import Context, run_checks
 from reqlens.errors import ReqlensError, UsageError
 from reqlens.group import group_transactions
 from reqlens.loaders import load_captures
 from reqlens.redact import RedactionPolicy, Redactor
 from reqlens.sanitize import clean_text
 from reqlens.scope import apply_scope
-from reqlens.view import render_summary, render_transaction
+from reqlens.view import (
+    render_findings,
+    render_hash_knowledge,
+    render_jwt_knowledge,
+    render_summary,
+    render_transaction,
+)
 
 
 @dataclass
@@ -42,6 +50,8 @@ class Options:
     keep_body_values: bool = False
     show_redaction: int | None = None
     use_external_tools: bool = True
+    check_jwt: str | None = None
+    check_hashes: list[str] | None = None
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -56,9 +66,22 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "inputs",
-        nargs="+",
+        nargs="*",
         metavar="CAPTURE",
         help="capture file, directory, or glob; several are merged into one analysis",
+    )
+    parser.add_argument(
+        "--check-jwt",
+        metavar="TOKEN",
+        help="no capture needed: identify a JWT's algorithm and list attack classes to test "
+        "by hand. Pass '-' to read the token from stdin (keeps it out of shell history)",
+    )
+    parser.add_argument(
+        "--check-hashes",
+        nargs="+",
+        metavar="VALUE",
+        help="no capture needed: identify likely hash/encoding types of values. Pass '-' to "
+        "read one value per line from stdin",
     )
     parser.add_argument(
         "--input-format",
@@ -151,10 +174,17 @@ def parse_report_formats(value: str) -> list[str]:
 
 def options_from_args(args: argparse.Namespace) -> Options:
     """Validate parsed arguments and build :class:`Options`."""
+    knowledge_mode = args.check_jwt is not None or args.check_hashes is not None
+    if knowledge_mode and args.inputs:
+        raise UsageError("--check-jwt and --check-hashes run on their own; drop the capture files")
+    if not knowledge_mode and not args.inputs:
+        raise UsageError("give at least one capture file (or use --check-jwt / --check-hashes)")
     return Options(
         inputs=list(args.inputs),
         input_format=args.input_format,
-        scope=parse_scope(args.scope, args.scope_file),
+        scope=[] if knowledge_mode else parse_scope(args.scope, args.scope_file),
+        check_jwt=args.check_jwt,
+        check_hashes=args.check_hashes,
         report_formats=parse_report_formats(args.report_format),
         output=args.output,
         keep_body_values=args.keep_body_values,
@@ -165,6 +195,8 @@ def options_from_args(args: argparse.Namespace) -> Options:
 
 def run(options: Options) -> int:
     """Run the pipeline in order. Returns the process exit code."""
+    if options.check_jwt is not None or options.check_hashes is not None:
+        return _knowledge_mode(options)
     # 1. load
     loaded = load_captures(options.inputs, options.input_format)
     for warning in loaded.warnings:
@@ -180,8 +212,40 @@ def run(options: Options) -> int:
     # 4. group
     endpoints = group_transactions(redacted)
     print(render_summary(loaded, scoped, redacted, endpoints))
-    # 5-7. local checks, AI, reports: added in later build phases.
-    _note("local checks and reports are not built yet (phases 3-4); no report was written")
+    # 5. local checks + knowledge layer (no AI)
+    findings = run_checks(Context(redacted, endpoints, options.scope))
+    print()
+    print(render_findings(findings))
+    # 6-7. AI and reports: added in later build phases.
+    _note("report files are not built yet (phase 4); findings were printed above only")
+    return 0
+
+
+def _read_values(values: list[str]) -> list[str]:
+    """Expand '-' into lines read from stdin."""
+    out: list[str] = []
+    for value in values:
+        if value == "-":
+            out.extend(line.strip() for line in sys.stdin.read().splitlines() if line.strip())
+        else:
+            out.append(value)
+    return out
+
+
+def _knowledge_mode(options: Options) -> int:
+    """--check-jwt / --check-hashes: identification and guidance only, no capture, no AI."""
+    blocks = []
+    if options.check_jwt is not None:
+        token = _read_values([options.check_jwt])
+        if len(token) != 1:
+            raise UsageError("--check-jwt expects exactly one token")
+        record = Redactor().describe_jwt(token[0])
+        if record is None:
+            raise UsageError("--check-jwt: that value is not a JWT (expected header.payload.sig)")
+        blocks.append(render_jwt_knowledge(record))
+    if options.check_hashes is not None:
+        blocks.append(render_hash_knowledge(_read_values(options.check_hashes)))
+    print("\n\n".join(blocks))
     return 0
 
 
@@ -213,8 +277,18 @@ def _show_redaction(index: int, loaded, scoped, redactor: Redactor) -> int:
     return 0
 
 
+def _tolerant_streams() -> None:
+    """Never crash on characters the console can't encode (e.g. cp1252 on Windows)."""
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            with contextlib.suppress(ValueError, OSError):
+                reconfigure(errors="replace")
+
+
 def main(argv: list[str] | None = None) -> int:
     """Entry point for ``reqlens``, ``python -m reqlens`` and ``python reqlens.py``."""
+    _tolerant_streams()
     parser = build_parser()
     args = parser.parse_args(argv)
     try:

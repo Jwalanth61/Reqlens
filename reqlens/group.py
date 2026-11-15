@@ -15,8 +15,12 @@ from reqlens.model import Transaction
 
 _SEGMENT_RULES: tuple[tuple[re.Pattern, str], ...] = (
     (re.compile(r"^\d+$"), "{id}"),
-    (re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"),
-     "{uuid}"),
+    (
+        re.compile(
+            r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        ),
+        "{uuid}",
+    ),
     (re.compile(r"^[0-9a-fA-F]{24}$"), "{objectid}"),
     (re.compile(r"^[0-9a-fA-F]{16,}$"), "{hex}"),
     (re.compile(r"^<(?:redacted|jwt):[0-9a-f]+>$"), "{token}"),
@@ -24,7 +28,7 @@ _SEGMENT_RULES: tuple[tuple[re.Pattern, str], ...] = (
     (re.compile(r"^<(?:phone|card|gov-id)>$"), "{pii}"),
     (re.compile(r"^\d{4}-\d{2}-\d{2}$"), "{date}"),
     (re.compile(r"^(?=.*\d)[A-Za-z0-9_-]{20,}$"), "{token}"),
-)  # fmt: skip
+)
 
 
 def normalise_segment(segment: str) -> str:

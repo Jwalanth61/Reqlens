@@ -5,11 +5,18 @@ Everything rendered here passes through :func:`reqlens.sanitize.clean_text`.
 
 from __future__ import annotations
 
+import textwrap
+
+from reqlens import config
 from reqlens.group import Endpoint
+from reqlens.knowledge import catalog, hashes
+from reqlens.knowledge import jwt as jwt_knowledge
 from reqlens.loaders.base import LoadResult
-from reqlens.model import Transaction
+from reqlens.model import Finding, TokenRecord, Transaction
 from reqlens.sanitize import clean_text
 from reqlens.scope import ScopeResult
+
+_WIDTH = 96
 
 
 def _line(text: str) -> str:
@@ -82,3 +89,117 @@ def render_summary(
         statuses = ",".join(str(s) for s in endpoint.statuses) or "-"
         lines.append(f"  - {endpoint.key}  x{len(endpoint.members)}  [{statuses}]")
     return "\n".join(_line(line) for line in lines)
+
+
+def _wrap(label: str, text: str, indent: str = "   ") -> list[str]:
+    body = textwrap.fill(
+        _line(text),
+        width=_WIDTH,
+        initial_indent=f"{indent}{label}",
+        subsequent_indent=indent + "  ",
+    )
+    return body.splitlines()
+
+
+def _finding_block(number: int, finding: Finding) -> list[str]:
+    category = catalog.CATEGORIES.get(finding.category, "")
+    meta = f"concern: {finding.concern.value} | {finding.confidence.value} | {finding.category}"
+    if category:
+        meta += f" {category}"
+    if finding.wstg:
+        meta += f" | {', '.join(finding.wstg)}"
+    lines = [_line(f"{number}. {finding.title}"), f"   [{meta}]"]
+    if finding.observed:
+        lines += _wrap("Observed: ", finding.observed)
+    lines += _wrap("Why it may matter: ", finding.why)
+    lines += _wrap("Manual test: ", finding.manual_test)
+    lines += _wrap("Learn: ", finding.learning)
+    if finding.evidence:
+        extra = finding.occurrences - len(finding.evidence)
+        lines.append("   Evidence:")
+        for item in finding.evidence:
+            where = f"{item.location} {item.name}".strip()
+            lines.append(
+                _line(f"     - #{item.transaction_index} {item.endpoint} | {where}: {item.value}")
+            )
+        if extra > 0:
+            lines.append(f"     - ... and {extra} more")
+    for reference in finding.references:
+        lines.append(_line(f"   Reference: {reference}"))
+    return lines
+
+
+def render_findings(findings: list[Finding]) -> str:
+    """Terminal listing of findings, grouped by category (already sorted)."""
+    lines = [_line(config.PASSIVE_BANNER), ""]
+    if not findings:
+        lines.append("No findings from the local checks.")
+        return "\n".join(lines)
+    counts = {level: 0 for level in ("high", "medium", "low", "info")}
+    for finding in findings:
+        counts[finding.concern.value] += 1
+    lines.append(
+        f"{len(findings)} findings: "
+        + ", ".join(f"{count} {level}" for level, count in counts.items() if count)
+    )
+    current = None
+    for number, finding in enumerate(findings, 1):
+        if finding.category != current:
+            current = finding.category
+            name = catalog.CATEGORIES.get(current, "")
+            lines += ["", f"== {current} {name} ==".rstrip()]
+        lines += [""] + _finding_block(number, finding)
+    return "\n".join(lines)
+
+
+def render_jwt_knowledge(token: TokenRecord) -> str:
+    """The --check-jwt report: identification plus attack classes to test by hand."""
+    alg = str(token.jwt_header.get("alg", ""))
+    lines = [
+        _line(f"Identified: {jwt_knowledge.describe(alg)}"),
+        _line(f"Header: {token.jwt_header}"),
+        _line(f"Claims (identity values fingerprinted): {token.jwt_claims}"),
+        "Signature: " + ("present (not shown)" if token.format == "jwt" else "none"),
+        "",
+        "Possible issues to test. reqlens performs none of these; run them yourself, once,",
+        "with your own test account, and only against targets you are authorized to test.",
+    ]
+    for number, issue in enumerate(jwt_knowledge.analyse(token), 1):
+        entry = catalog.entry(issue.check_id)
+        lines += [
+            "",
+            _line(
+                f"{number}. {entry.title}  [concern: {issue.concern or entry.concern.value} | "
+                f"{entry.category} | {', '.join(entry.wstg)}]"
+            ),
+        ]
+        lines += _wrap("Observed: ", issue.observed)
+        lines += _wrap("Why it may matter: ", entry.why)
+        lines += _wrap("Manual test: ", entry.manual_test)
+        lines += _wrap("Learn: ", entry.learning)
+        lines += [_line(f"   Reference: {ref}") for ref in entry.references]
+    return "\n".join(lines)
+
+
+def render_hash_knowledge(values: list[str]) -> str:
+    """The --check-hashes report. Values themselves are not echoed, only their shape."""
+    lines = ["Hash / encoding identification (identification only; nothing is cracked)."]
+    for number, value in enumerate(values, 1):
+        fmt, candidates = hashes.identify_value(value)
+        lines += ["", f"{number}. value of {len(value.strip())} characters, shape {fmt}"]
+        if not candidates:
+            lines.append("   No common hash or token format matches this shape.")
+        for candidate in candidates:
+            mode = (
+                (f" (hashcat mode {candidate.hashcat_mode}, for offline tests of values you own)")
+                if candidate.hashcat_mode is not None
+                else ""
+            )
+            lines += _wrap(f"- {candidate.name}: ", candidate.note + mode)
+            if candidate.password_hash:
+                lines += _wrap(
+                    "",
+                    "Password-hash format: if an API returns this to clients, "
+                    "that is a serious exposure in itself.",
+                )
+    return "\n".join(lines)

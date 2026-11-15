@@ -410,12 +410,20 @@ def test_random_secrets_never_leak_from_any_position(seed):
 @pytest.mark.parametrize(
     "name, expected",
     [
-        ("Authorization", True), ("X-API-Key", True), ("sessionId", True),
-        ("csrf_token", True), ("JSESSIONID", True), ("refreshToken", True), ("pin", True),
-        ("author", False), ("Content-Type", False), ("keepAlive", False), ("pinned", False),
+        ("Authorization", True),
+        ("X-API-Key", True),
+        ("sessionId", True),
+        ("csrf_token", True),
+        ("JSESSIONID", True),
+        ("refreshToken", True),
+        ("pin", True),
+        ("author", False),
+        ("Content-Type", False),
+        ("keepAlive", False),
+        ("pinned", False),
         ("display_name", False),
     ],
-)  # fmt: skip
+)
 def test_is_sensitive_name(name, expected):
     assert is_sensitive_name(name) is expected
 

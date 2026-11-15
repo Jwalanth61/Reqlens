@@ -44,6 +44,31 @@ the tokens in the file stop working, and keep captures out of version control.
   Credentials and tokens are still removed, and the AI layer (planned for a later phase)
   will never use this view.
 
+## Local checks and the knowledge layer (no AI)
+
+Every run checks the redacted traffic for security headers, cookie attributes, CORS, JWTs
+and tokens in URLs, information disclosure, access-control signals (BOLA/IDOR, excessive
+data exposure, mass assignment, admin endpoints), caching of authenticated responses, and
+GraphQL. Each finding is mapped to the OWASP API Security Top 10 (2023) and the OWASP WSTG.
+It comes with what was observed, why it may matter, one manual test you can run yourself,
+and a short lesson.
+
+Two commands work without any capture or AI:
+
+```bash
+reqlens --check-jwt -              # paste a token on stdin (keeps it out of shell history)
+reqlens --check-hashes VALUE ...   # identify likely hash/encoding types
+```
+
+`--check-jwt` names the algorithm (for example *RS256, RSA signature with SHA-256*). It then
+lists the attack classes worth testing: algorithm confusion, `alg: none` acceptance,
+signature verification, `kid`/`jku`/embedded-key tricks, key hygiene, expiry, and sensitive
+claims. Each comes with a manual test and a reference. The signature is never shown.
+
+`--check-hashes` only identifies values. Nothing is ever cracked.
+
+Status: report files (md/html/json) are planned for phase 4; findings are printed for now.
+
 ## Development
 
 ```bash

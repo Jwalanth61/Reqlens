@@ -24,7 +24,7 @@ _ANSI_RE = re.compile(
 _CONTROL_RE = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]")
 
 # Bidi overrides/isolates and zero-width characters used to disguise text.
-_INVISIBLE_RE = re.compile(r"[​-‏‪-‮⁦-⁩﻿]")
+_INVISIBLE_RE = re.compile("[​-‏‪-‮⁦-⁩﻿]")
 
 
 def clean_text(value: str, *, keep_newlines: bool = True) -> str:

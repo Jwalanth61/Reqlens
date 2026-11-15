@@ -57,3 +57,16 @@ def test_capture_text_cannot_inject_terminal_escapes(tmp_path, capsys):
     assert main([str(path), "--scope", "app.test", "--show-redaction", "0"]) == 0
     out = capsys.readouterr().out
     assert "\x1b" not in out and "\x07" not in out
+
+
+def test_full_run_prints_findings_without_secrets(tmp_path, capsys):
+    path = cf.write_har(tmp_path)
+    assert main([str(path), "--scope", "app.test,api.app.test"]) == 0
+    out = capsys.readouterr().out
+    assert "reqlens is a passive analyzer" in out
+    assert "== API1:2023 Broken Object Level Authorization ==" in out
+    assert "Algorithm confusion (asymmetric -> HS256) worth testing [RS256]" in out
+    assert "Secret token carried in the URL ('token' on app.test)" in out
+    assert "Manual test:" in out and "Learn:" in out
+    for secret in cf.SECRETS:
+        assert secret not in out

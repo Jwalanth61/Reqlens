@@ -184,6 +184,10 @@ class Finding:
     references: list[str] = field(default_factory=list)
     source: str = "rule"
     """``rule``, ``knowledge``, ``external``, or ``ai``."""
+    observed: str = ""
+    """What was seen in this capture, in one or two sentences (redacted)."""
+    occurrences: int = 0
+    """How many places matched; evidence lists only the first few."""
 
     def __post_init__(self) -> None:
         """Coerce enum fields and refuse any confidence other than possible/informational."""

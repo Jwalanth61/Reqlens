@@ -41,17 +41,59 @@ from reqlens.model import Header, PiiHit, TokenRecord, Transaction, header_value
 
 _SENSITIVE_WORDS = frozenset(
     {
-        "password", "passwd", "pass", "pwd", "passphrase", "secret", "token", "apikey",
+        "password",
+        "passwd",
+        "pass",
+        "pwd",
+        "passphrase",
+        "secret",
+        "token",
+        "apikey",
         "authorization",
-        "key", "auth", "session", "sess", "sid", "csrf", "xsrf", "otp", "pin", "cvv", "cvc",
-        "ssn", "signature", "sig", "credential", "credentials", "cookie", "refresh",
-        "bearer", "assertion", "jwt", "private", "mfa", "totp",
+        "key",
+        "auth",
+        "session",
+        "sess",
+        "sid",
+        "csrf",
+        "xsrf",
+        "otp",
+        "pin",
+        "cvv",
+        "cvc",
+        "ssn",
+        "signature",
+        "sig",
+        "credential",
+        "credentials",
+        "cookie",
+        "refresh",
+        "bearer",
+        "assertion",
+        "jwt",
+        "private",
+        "mfa",
+        "totp",
     }
-)  # fmt: skip
+)
 _SENSITIVE_SUBSTRINGS = (
-    "password", "passwd", "secret", "token", "apikey", "api_key", "sessionid", "sessid",
-    "session", "csrf", "xsrf", "credential", "jwt", "bearer", "signature", "privatekey",
-)  # fmt: skip
+    "password",
+    "passwd",
+    "secret",
+    "token",
+    "apikey",
+    "api_key",
+    "sessionid",
+    "sessid",
+    "session",
+    "csrf",
+    "xsrf",
+    "credential",
+    "jwt",
+    "bearer",
+    "signature",
+    "privatekey",
+)
 _QUERY_ONLY_SENSITIVE = frozenset({"code", "state_token", "ticket", "x-amz-credential"})
 
 # Header names that contain a sensitive word but carry policy, not secrets.
@@ -61,21 +103,69 @@ _NON_SECRET_HEADER_PREFIXES = ("access-control-", "www-authenticate", "sec-webso
 # their content is what disclosure, GraphQL and role checks need to read.
 _READABLE_KEYS = frozenset(
     {
-        "error", "errors", "message", "msg", "detail", "details", "description", "exception",
-        "trace", "stack", "stacktrace", "reason", "title", "type", "kind", "status",
-        "role", "roles", "scope", "scopes", "permission", "permissions", "group", "groups",
-        "operationname", "query", "__typename", "method", "level", "code_name",
+        "error",
+        "errors",
+        "message",
+        "msg",
+        "detail",
+        "details",
+        "description",
+        "exception",
+        "trace",
+        "stack",
+        "stacktrace",
+        "reason",
+        "title",
+        "type",
+        "kind",
+        "status",
+        "role",
+        "roles",
+        "scope",
+        "scopes",
+        "permission",
+        "permissions",
+        "group",
+        "groups",
+        "operationname",
+        "query",
+        "__typename",
+        "method",
+        "level",
+        "code_name",
     }
-)  # fmt: skip
+)
 
 _JWT_KEEP_CLAIMS = frozenset(
     {
-        "exp", "iat", "nbf", "auth_time", "iss", "aud", "azp", "client_id", "scope", "scp",
-        "role", "roles", "groups", "permissions", "perms", "authorities", "token_use", "typ",
-        "amr", "acr", "ver", "realm_access", "resource_access", "admin", "is_admin",
+        "exp",
+        "iat",
+        "nbf",
+        "auth_time",
+        "iss",
+        "aud",
+        "azp",
+        "client_id",
+        "scope",
+        "scp",
+        "role",
+        "roles",
+        "groups",
+        "permissions",
+        "perms",
+        "authorities",
+        "token_use",
+        "typ",
+        "amr",
+        "acr",
+        "ver",
+        "realm_access",
+        "resource_access",
+        "admin",
+        "is_admin",
         "isadmin",
     }
-)  # fmt: skip
+)
 _JWT_FINGERPRINT_CLAIMS = frozenset(
     {"sub", "jti", "sid", "session_state", "nonce", "at_hash", "c_hash", "oid", "uid"}
 )
@@ -90,9 +180,18 @@ _JWT_PII_CLAIMS = {
 }
 
 _SET_COOKIE_ATTRS = frozenset(
-    {"expires", "max-age", "domain", "path", "secure", "httponly", "samesite", "priority",
-     "partitioned"}
-)  # fmt: skip
+    {
+        "expires",
+        "max-age",
+        "domain",
+        "path",
+        "secure",
+        "httponly",
+        "samesite",
+        "priority",
+        "partitioned",
+    }
+)
 _URL_HEADERS = frozenset({"location", "referer", "content-location", "origin", "refresh"})
 
 # --- Value patterns ----------------------------------------------------------------------
@@ -277,6 +376,19 @@ class Redactor:
                 f"redaction failed for transaction {tx.index} ({type(exc).__name__}); "
                 "stopping rather than risk leaking unredacted data"
             ) from None
+
+    def describe_jwt(self, token: str) -> TokenRecord | None:
+        """Decode a JWT the user supplied (``--check-jwt``) into a redacted TokenRecord.
+
+        Returns ``None`` if the value is not a JWT. The signature is never kept.
+        """
+        token = token.strip()
+        if not _JWT_RE.fullmatch(token):
+            return None
+        sink = _Collector()
+        if self._jwt(token, sink, "supplied token", "", False) is None:
+            return None
+        return sink.tokens[-1]
 
     # -- transaction -----------------------------------------------------------------------
 
