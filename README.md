@@ -23,6 +23,27 @@ vulnerability class.
 The test suite blocks every socket by default, so any code path that tried to reach the
 network would fail the tests.
 
+## Privacy model (so far)
+
+A HAR file holds **live session tokens**. Log out of the application after capturing, so
+the tokens in the file stop working, and keep captures out of version control.
+
+- **Scope first.** `--scope app.test,*.api.app.test` (or `--scope-file`) is required.
+  Traffic to any other host is dropped before anything reads it. Only the host name and a
+  request count are kept, so you can see what was excluded. Well-known analytics, ad and
+  CDN hosts are dropped as noise even if a wildcard matches them. Name one exactly to keep it.
+- **Redaction before analysis.** Cookie values, auth headers, API keys, tokens in URLs, and
+  secret-named fields become `<redacted:xxxxxxxx>` fingerprints. The fingerprint is a keyed
+  hash with a fresh random key each run, so repeats correlate within a run but short
+  secrets can't be guessed back from it. JWTs are decoded to their header and safe claims
+  (`alg`, `kid`, `exp`, roles, scopes). The signature is dropped and identity claims are
+  fingerprinted. Body and query values are masked to shapes such as `<str:12>`, `<email>`
+  or `<int>`. Names and structure are kept.
+- `--show-redaction N` prints transaction N exactly as later stages see it.
+- `--keep-body-values` keeps non-secret body and query values for your own local report.
+  Credentials and tokens are still removed, and the AI layer (planned for a later phase)
+  will never use this view.
+
 ## Development
 
 ```bash

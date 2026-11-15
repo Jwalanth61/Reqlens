@@ -26,6 +26,42 @@ def header_value(headers: list[Header], name: str) -> str | None:
 
 
 @dataclass
+class TokenRecord:
+    """Structural facts about a secret that redaction removed. Never holds the secret.
+
+    Later stages (token checks, the knowledge layer) work from these facts alone.
+    """
+
+    kind: str
+    """``jwt``, ``cookie``, ``bearer``, ``basic``, ``header-token``, ``field``, ``opaque``."""
+    location: str
+    """e.g. ``request header``, ``request cookie``, ``url query``, ``response body``."""
+    name: str
+    """Header, cookie, parameter, or field name ('' when found in free text)."""
+    fingerprint: str
+    """Keyed hash prefix; equal values in one run get equal fingerprints."""
+    length: int
+    format: str
+    """Shape of the value, e.g. ``jwt``, ``jwt-unsigned``, ``hex:64``, ``bcrypt``,
+    ``base64url:43``, ``uuid``, ``digits:6``, ``text:12``."""
+    in_url: bool = False
+    jwt_header: dict = field(default_factory=dict)
+    """Decoded JWT header with secret-bearing members replaced (e.g. embedded keys)."""
+    jwt_claims: dict = field(default_factory=dict)
+    """Decoded JWT claims: analysis-relevant values kept, identity values fingerprinted."""
+
+
+@dataclass(frozen=True)
+class PiiHit:
+    """A personal-data value that was detected (and masked unless the user kept values)."""
+
+    kind: str
+    """``email``, ``phone``, ``card``, or ``gov-id``."""
+    location: str
+    name: str
+
+
+@dataclass
 class Transaction:
     """One captured request/response pair, normalised from any input format.
 
@@ -50,6 +86,12 @@ class Transaction:
     duration_ms: float | None = None
     notes: list[str] = field(default_factory=list)
     """Facts recorded during loading/redaction, e.g. 'response body truncated'."""
+    redacted: bool = False
+    """True once :mod:`reqlens.redact` produced this object. Checks refuse raw data."""
+    tokens: list[TokenRecord] = field(default_factory=list)
+    """Secrets removed by redaction, described structurally."""
+    pii: list[PiiHit] = field(default_factory=list)
+    """Personal data detected by redaction."""
 
     @property
     def host(self) -> str:

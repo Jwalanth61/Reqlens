@@ -22,7 +22,12 @@ from pathlib import Path
 
 from reqlens import __version__, config
 from reqlens.errors import ReqlensError, UsageError
+from reqlens.group import group_transactions
+from reqlens.loaders import load_captures
+from reqlens.redact import RedactionPolicy, Redactor
 from reqlens.sanitize import clean_text
+from reqlens.scope import apply_scope
+from reqlens.view import render_summary, render_transaction
 
 
 @dataclass
@@ -160,10 +165,52 @@ def options_from_args(args: argparse.Namespace) -> Options:
 
 def run(options: Options) -> int:
     """Run the pipeline in order. Returns the process exit code."""
-    raise ReqlensError(
-        "the analysis pipeline is not built yet (loaders arrive in phase 2); "
-        "options were validated successfully"
+    # 1. load
+    loaded = load_captures(options.inputs, options.input_format)
+    for warning in loaded.warnings:
+        _note(warning)
+    # 2. scope (out-of-scope traffic is discarded here, before anything reads it)
+    scoped = apply_scope(loaded.transactions, options.scope)
+    # 3. redact
+    policy = RedactionPolicy(keep_body_values=options.keep_body_values)
+    redactor = Redactor(policy)
+    if options.show_redaction is not None:
+        return _show_redaction(options.show_redaction, loaded, scoped, redactor)
+    redacted = redactor.redact_all(scoped.kept)
+    # 4. group
+    endpoints = group_transactions(redacted)
+    print(render_summary(loaded, scoped, redacted, endpoints))
+    # 5-7. local checks, AI, reports: added in later build phases.
+    _note("local checks and reports are not built yet (phases 3-4); no report was written")
+    return 0
+
+
+def _note(message: str) -> None:
+    """Print a sanitised informational line to stderr."""
+    print(f"reqlens: {clean_text(message, keep_newlines=False)}", file=sys.stderr)
+
+
+def _show_redaction(index: int, loaded, scoped, redactor: Redactor) -> int:
+    """Print one transaction exactly as later stages will see it."""
+    by_index = {tx.index: tx for tx in loaded.transactions}
+    if index not in by_index:
+        raise UsageError(
+            f"--show-redaction {index}: no such transaction "
+            f"(valid: 0-{len(loaded.transactions) - 1})"
+        )
+    kept = {tx.index: tx for tx in scoped.kept}
+    if index not in kept:
+        raise UsageError(
+            f"--show-redaction {index}: transaction is on {by_index[index].host}, which is "
+            "outside the scope, so it is never analysed"
+        )
+    label = (
+        "body values kept for local report; secrets still removed"
+        if redactor.policy.keep_body_values
+        else "strict: values masked, the same view any AI provider would get"
     )
+    print(render_transaction(redactor.redact(kept[index]), label))
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
