@@ -1,0 +1,22 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# Captures hold live session tokens and personal data: never commit them.
+*.har
+*.flow
+*.mitm
+captures/
+
+# Generated reports and AI cache
+reqlens-report*
+.reqlens-cache/
+
+# Test fixtures are synthetic and safe to commit
+!tests/fixtures/**

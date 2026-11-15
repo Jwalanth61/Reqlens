@@ -1,0 +1,2 @@
+# reqlens core has no third-party runtime dependencies (standard library only).
+# Optional AI provider packages are added in a later phase and stay optional.
