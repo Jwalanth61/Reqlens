@@ -71,17 +71,83 @@ The test suite blocks all network access by default. AI tests are allowed to rea
 reqlens works alongside a proxy: capture with the proxy, analyze with reqlens, then verify
 the leads by hand in the proxy.
 
-## Install
+## Installation
 
-Python 3.9 or newer. The core has no third-party dependencies.
+### Requirements
+
+- **Python 3.9 or newer.** Check with `python --version` (or `python3 --version`).
+- **Git**, to clone the repository.
+- No third-party packages are needed for the core tool. Only the optional Anthropic AI
+  provider needs one extra package.
+
+### 1. Clone the repository
 
 ```bash
-pip install .            # adds the `reqlens` command
-pip install .[ai]        # optional: the Anthropic package for --ai-provider anthropic
+git clone https://github.com/Jwalanth61/Reqlens.git
+cd Reqlens
 ```
 
-You can also run it without installing, using `python reqlens.py ...` or
-`python -m reqlens ...`.
+### 2. Create and activate a virtual environment (recommended)
+
+Windows (PowerShell):
+
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+```
+
+macOS / Linux:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+### 3. Install reqlens
+
+```bash
+pip install .
+```
+
+This adds the `reqlens` command to the active environment. To use the Claude API for the
+optional AI analysis (`--ai-provider anthropic`), install the extra as well:
+
+```bash
+pip install ".[ai]"
+```
+
+The quotes keep shells such as zsh from treating the brackets as a pattern. The other AI
+providers (`openai`, `ollama`, `codex`, `claude`, `gemini`) need nothing extra.
+
+### 4. Check it works
+
+```bash
+reqlens --version
+reqlens --help
+```
+
+### Running without installing
+
+reqlens only uses the standard library, so you can also run it straight from the cloned
+folder:
+
+```bash
+python reqlens.py --help
+python -m reqlens --help
+```
+
+### Updating
+
+```bash
+git pull
+pip install .
+```
+
+### Uninstalling
+
+```bash
+pip uninstall reqlens
+```
 
 ## Capturing traffic safely
 
