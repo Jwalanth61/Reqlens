@@ -4,4 +4,4 @@ reqlens only reads captures that already exist on disk. It never sends a request
 target application. Its findings are leads that a human must verify manually.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

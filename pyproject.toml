@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "reqlens"
-version = "0.1.0"  # keep in sync with reqlens/__init__.py (enforced by a test)
+version = "0.2.0"  # keep in sync with reqlens/__init__.py (enforced by a test)
 description = "Passive HTTP capture analyzer for authorized web-application security testing."
 readme = "README.md"
 requires-python = ">=3.9"
