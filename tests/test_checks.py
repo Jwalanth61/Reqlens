@@ -214,6 +214,47 @@ def test_token_in_url_and_password_hash_in_response():
     assert {"TOKEN-IN-URL", "HASH-PASSWORD-HASH-EXPOSED"} <= ids(found)
 
 
+# An ASP.NET bundle cache-buster: base64url SHA-256 plus UrlTokenEncode's padding digit.
+BUNDLE_V = "yjPzqFdgNbBygK7DCyKqtkcQOuWNe1gaEOefRY2VD5M1"
+JS = [("Content-Type", "text/javascript; charset=utf-8")]
+CSS = [("Content-Type", "text/css; charset=utf-8")]
+
+
+@pytest.mark.parametrize(
+    "url, resp",
+    [
+        (f"https://app.test/Scripts/jqueryBundleHUB?v={BUNDLE_V}", JS),
+        (f"https://app.test/Content/v2/brands/AppBundle?v={BUNDLE_V}", CSS),
+        (f"https://app.test/Scripts/jqueryBundleHUB?v={BUNDLE_V}", []),  # no content type
+        (f"https://app.test/app.min.js?ver={BUNDLE_V}", []),
+    ],
+)
+def test_cache_buster_on_static_asset_is_not_a_token_in_url(url, resp):
+    found = check(tx(url, resp=resp), only="tokens")
+    assert "TOKEN-IN-URL" not in ids(found)
+
+
+@pytest.mark.parametrize(
+    "url, resp",
+    [
+        # a cache-buster name on a page or API response is still a lead
+        (f"https://app.test/account/verify?v={BUNDLE_V}", HTML),
+        (f"https://app.test/api/session?v={BUNDLE_V}", JSON),
+        # a credential-like name on a static asset is still a lead
+        (f"https://app.test/Scripts/app.js?token={cf.URL_TOKEN}", JS),
+    ],
+)
+def test_token_in_url_still_reported_outside_cache_busters(url, resp):
+    found = check(tx(url, resp=resp), only="tokens")
+    assert "TOKEN-IN-URL" in ids(found)
+
+
+def test_cache_buster_value_is_still_redacted():
+    url = f"https://app.test/Scripts/jqueryBundleHUB?v={BUNDLE_V}"
+    redacted = Redactor(key=b"k" * 32).redact_all([tx(url, resp=JS)])
+    assert BUNDLE_V not in redacted[0].url
+
+
 # --- disclosure ----------------------------------------------------------------------------
 
 

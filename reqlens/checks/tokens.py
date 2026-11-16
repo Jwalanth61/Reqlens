@@ -14,6 +14,41 @@ from reqlens.model import Finding, TokenRecord, Transaction
 
 _DIGEST_FIELD_RE = re.compile(r"(pass|pwd|hash|secret|digest|salt)", re.IGNORECASE)
 
+# Cache-busting parameters: a public content hash or build stamp appended to static asset
+# URLs (e.g. ASP.NET bundles' ?v=<base64url SHA-256>). Redaction still masks them, but they
+# are not credentials, so a static asset carrying one is not a token-in-URL lead.
+_CACHE_BUSTER_NAMES = frozenset(
+    {"v", "ver", "version", "_", "cb", "cachebust", "cachebuster", "rev", "build", "hash"}
+)
+_STATIC_EXT_RE = re.compile(
+    r"\.(js|mjs|css|map|woff2?|ttf|otf|eot|png|jpe?g|gif|svg|ico|webp|avif)$", re.IGNORECASE
+)
+_STATIC_DIR_RE = re.compile(
+    r"^/(scripts|content|bundles|static|assets|dist|css|js|fonts|images|img)/", re.IGNORECASE
+)
+_STATIC_TYPE_RE = re.compile(
+    r"^(text/css|(text|application)/(x-)?javascript|application/ecmascript|font/|image/)",
+    re.IGNORECASE,
+)
+
+
+def is_static_asset(tx: Transaction) -> bool:
+    """True for scripts, stylesheets, fonts and images (by content type, extension or folder)."""
+    content_type = (tx.response_header("Content-Type") or "").strip()
+    if content_type:
+        return bool(_STATIC_TYPE_RE.match(content_type))
+    path = tx.path
+    return bool(_STATIC_EXT_RE.search(path) or _STATIC_DIR_RE.match(path))
+
+
+def is_cache_buster(tx: Transaction, token: TokenRecord) -> bool:
+    """A cache-busting query parameter on a static asset: public, not a secret."""
+    return (
+        token.location.endswith("query")
+        and token.name.lower() in _CACHE_BUSTER_NAMES
+        and is_static_asset(tx)
+    )
+
 
 def family_key(token: TokenRecord) -> tuple:
     """Tokens from the same issuer/algorithm/key produce the same findings; analyse once."""
@@ -38,7 +73,7 @@ def run(ctx: Context) -> Iterable[Finding]:
                 key = family_key(token)
                 families.setdefault(key, (tx, token))
                 family_members.setdefault(key, []).append((tx, token))
-            elif token.in_url:
+            elif token.in_url and not is_cache_buster(tx, token):
                 yield make_finding(
                     "TOKEN-IN-URL",
                     [
