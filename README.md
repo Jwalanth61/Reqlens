@@ -280,7 +280,7 @@ reqlens session.har --scope app.test --ai --ai-provider codex   # signed-in CLI,
 | `--scope HOSTS` | Comma-separated authorized hosts; `*.app.test` matches subdomains (required) |
 | `--scope-file PATH` | One authorized host per line; `#` starts a comment |
 | `--report-format md,html,json` | One or more report formats (default `md`) |
-| `-o, --output PREFIX` | Report path prefix; each format adds its extension (default `reqlens-report`) |
+| `-o, --output PREFIX` | Report path prefix; each format adds its extension, and any folder in the path is created (default `reports/reqlens-report`) |
 | `--keep-body-values` | Show non-secret body/query values in your local report (never sent to AI) |
 | `--show-redaction N` | Print transaction N after redaction, then exit |
 | `--no-external` | Don't use jwt_tool or hashcat even if installed (no process is started) |

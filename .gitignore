@@ -15,6 +15,7 @@ venv/
 captures/
 
 # Generated reports and AI cache
+reports/
 reqlens-report*
 .reqlens-cache/
 

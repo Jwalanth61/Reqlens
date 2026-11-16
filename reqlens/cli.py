@@ -128,7 +128,8 @@ def build_parser() -> argparse.ArgumentParser:
         "--output",
         default=config.DEFAULT_OUTPUT_PREFIX,
         metavar="PREFIX",
-        help="output path prefix; extensions are added per format (default: reqlens-report)",
+        help="output path prefix; extensions are added per format, and any folder in the "
+        "path is created (default: reports/reqlens-report)",
     )
     parser.add_argument(
         "--keep-body-values",

@@ -44,7 +44,7 @@ def test_options_defaults():
     args = build_parser().parse_args(["cap.har", "--scope", "app.test"])
     opts = options_from_args(args)
     assert opts.report_formats == ["md"]
-    assert opts.output == "reqlens-report"
+    assert opts.output == "reports/reqlens-report"
     assert opts.use_external_tools is True
     assert opts.input_format is None
 

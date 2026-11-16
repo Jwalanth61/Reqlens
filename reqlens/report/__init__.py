@@ -162,7 +162,12 @@ def write_reports(data: ReportData, formats: list[str], prefix: str) -> list[Pat
     base = output_base(prefix)
     directory = base.parent if str(base.parent) else Path(".")
     if not directory.is_dir():
-        raise ReportError(f"output directory does not exist: {directory}")
+        try:
+            directory.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            raise ReportError(
+                f"cannot create output directory {directory}: {exc.strerror or exc}"
+            ) from exc
     written = []
     for fmt in formats:
         suffix, render = renderers[fmt]

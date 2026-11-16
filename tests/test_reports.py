@@ -10,7 +10,6 @@ import capture_factory as cf
 import pytest
 
 from reqlens.cli import main
-from reqlens.errors import ReportError
 from reqlens.knowledge.catalog import make_finding
 from reqlens.model import Evidence
 from reqlens.report import ReportData, RunSummary, output_base, write_reports
@@ -118,11 +117,11 @@ def test_markdown_and_html_sections(reports):
     assert "<script" not in page.lower()
 
 
-def test_default_output_is_markdown_in_cwd(tmp_path):
+def test_default_output_is_markdown_in_reports_folder(tmp_path):
     capture = cf.write_har(tmp_path)
     assert main([str(capture), "--scope", "app.test"]) == 0
-    assert Path("reqlens-report.md").exists()
-    assert not Path("reqlens-report.html").exists()
+    assert Path("reports/reqlens-report.md").exists()
+    assert not Path("reports/reqlens-report.html").exists()
 
 
 # --- untrusted text ------------------------------------------------------------------------
@@ -172,9 +171,12 @@ def test_output_base_strips_report_extensions():
     assert output_base("out/report.v2") == Path("out/report.v2")
 
 
-def test_missing_output_directory_is_an_error(tmp_path):
-    with pytest.raises(ReportError, match="does not exist"):
-        write_reports(ReportData(summary(), []), ["md"], str(tmp_path / "nope" / "r"))
+def test_missing_output_directory_is_created(tmp_path):
+    target = tmp_path / "nested" / "reports" / "r"
+    paths = write_reports(ReportData(summary(), []), ["md"], str(target))
+    assert target.parent.is_dir()
+    assert paths == [target.with_name("r.md")]
+    assert paths[0].read_text(encoding="utf-8")
 
 
 def test_write_is_atomic_and_leaves_no_temp_files(tmp_path):

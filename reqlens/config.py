@@ -22,7 +22,8 @@ FINGERPRINT_HEX_CHARS = 8
 # --- Reports ------------------------------------------------------------------------------
 REPORT_FORMATS: tuple[str, ...] = ("md", "html", "json")
 DEFAULT_REPORT_FORMATS: tuple[str, ...] = ("md",)
-DEFAULT_OUTPUT_PREFIX = "reqlens-report"
+DEFAULT_OUTPUT_PREFIX = "reports/reqlens-report"
+"""Reports go in a ``reports/`` folder by default; it is created if missing."""
 
 PASSIVE_BANNER = (
     "reqlens is a passive analyzer: it only read existing capture files and sent no "
