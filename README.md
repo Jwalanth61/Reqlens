@@ -2,6 +2,22 @@
 
 A **passive** HTTP traffic analyzer for authorized web-application security testing.
 
+## The name
+
+**reqlens** means **request lens**. A lens lets you see more clearly without touching what
+you're looking at, and that's how this tool works on your traffic:
+
+- **It looks, and never acts.** A lens only takes in what's already there. reqlens reads
+  requests and responses you already captured, and sends nothing to the application.
+- **It brings detail into focus.** Weak cookie flags, a token's algorithm, an object ID in a
+  path, an over-generous CORS header: details that blur together across hundreds of
+  requests are brought out one at a time, with an explanation.
+- **It filters what you don't need to see.** Out-of-scope hosts, analytics noise and every
+  secret value are removed first, so what reaches your report (or an AI) is structure,
+  not credentials.
+- **It helps you learn to see for yourself.** Each finding comes with a manual test and a
+  short lesson, so over time you spot these patterns without the tool.
+
 You log in to an application you are authorized to test and capture your own traffic with
 browser DevTools (HAR), Burp Suite, mitmproxy or OWASP ZAP. reqlens reads every request and
 response in that capture: headers, cookies, tokens and bodies. It then writes a report of
